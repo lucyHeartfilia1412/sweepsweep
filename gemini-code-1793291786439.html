@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>classroom - ตารางเวรทำความสะอาด (Realtime)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Prompt & Noto Serif JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK (Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue, set, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Firebase Configuration (ใส่ให้เรียบร้อยแล้ว)
+        const firebaseConfig = {
+            apiKey: "AIzaSyANfx7sutRcOJF2RBfbCx4jksZThIv8eBM",
+            authDomain: "cleaning-duty-d9da7.firebaseapp.com",
+            projectId: "cleaning-duty-d9da7",
+            storageBucket: "cleaning-duty-d9da7.firebasestorage.app",
+            messagingSenderId: "871947181991",
+            appId: "1:871947181991:web:9c28640cb1ce65810ea082",
+            measurementId: "G-9ZMRC196J6"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Global State & Functions accessible to window
+        window.db = db;
+        window.ref = ref;
+        window.onValue = onValue;
+        window.runTransaction = runTransaction;
+        window.set = set;
+
+        // Fire event when Firebase script is ready
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        jp: {
+                            wood: '#D9C5B2',
+                            paper: '#FAF6F0',
+                            ink: '#2B2B2B',
+                            red: '#C84B31',
+                            gold: '#D4AF37',
+                            // 5 Days Soft Pastel Theme Colors
+                            mon: { light: '#FEF08A', main: '#EAB308', border: '#CA8A04', dark: '#854D0E', text: '#713F12' },
+                            tue: { light: '#FCE7F3', main: '#EC4899', border: '#DB2777', dark: '#9D174D', text: '#831843' },
+                            wed: { light: '#DCFCE7', main: '#22C55E', border: '#16A34A', dark: '#15803D', text: '#14532D' },
+                            thu: { light: '#FFEDD5', main: '#F97316', border: '#EA580C', dark: '#C2410C', text: '#7C2D12' },
+                            fri: { light: '#E0F2FE', main: '#0EA5E9', border: '#0284C7', dark: '#0369A1', text: '#0C4A6E' }
+                        }
+                    },
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif'],
+                        noto: ['Noto Serif JP', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #FAF6F0;
+            background-image: radial-gradient(#E5D9CC 1px, transparent 1px);
+            background-size: 16px 16px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .font-jp {
+            font-family: 'Noto Serif JP', serif;
+        }
+
+        /* Japanese Stamp Effect (Hankou) */
+        .hankou-stamp {
+            border: 3px solid #C84B31;
+            color: #C84B31;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transform: rotate(-12deg);
+            box-shadow: 0 0 2px rgba(200, 75, 49, 0.4);
+            user-select: none;
+        }
+
+        .wood-card {
+            background-color: #FFFFFF;
+            border: 2px solid #E8DFD8;
+            box-shadow: 0 8px 20px -4px rgba(180, 150, 120, 0.12);
+        }
+
+        button, input {
+            touch-action: manipulation;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FAF6F0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D9C5B2;
+            border-radius: 4px;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+                background-image: none !important;
+                padding: 0 !important;
+            }
+            .print-area {
+                box-shadow: none !important;
+                border: 2px solid #2B2B2B !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 15px !important;
+            }
+        }
+
+        .sakura {
+            position: absolute;
+            background: #FFB7C5;
+            border-radius: 100% 0 100% 0;
+            opacity: 0.6;
+            pointer-events: none;
+            animation: fall linear infinite, sway ease-in-out infinite;
+        }
+
+        @keyframes fall {
+            0% { top: -10%; }
+            100% { top: 100%; }
+        }
+
+        @keyframes sway {
+            0%, 100% { transform: translateX(0) rotate(0deg); }
+            50% { transform: translateX(30px) rotate(180deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-jp-ink relative overflow-x-hidden pb-12 antialiased">
+
+    <!-- Background Falling Sakura Animation Container -->
+    <div id="sakura-container" class="fixed inset-0 pointer-events-none z-0 no-print"></div>
+
+    <!-- Main App Container -->
+    <div class="relative z-10 max-w-5xl mx-auto px-3 sm:px-4 py-4 md:py-8">
+
+        <!-- Header Banner -->
+        <header class="text-center mb-6 no-print">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-50 border border-red-200 text-jp-red text-xs font-medium mb-2 shadow-sm">
+                <i class="fa-solid fa-fan animate-spin" style="animation-duration: 8s;"></i>
+                <span>ระบบเลือกเวรทำความสะอาด (Realtime)</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl md:text-5xl font-bold font-jp text-slate-800 tracking-wide mb-1 flex items-center justify-center gap-2 flex-wrap">
+                <span>ตารางเวรประจำสัปดาห์</span>
+                <span class="text-xs bg-jp-red text-white font-prompt px-2.5 py-0.5 rounded-full align-middle shadow">28 คน</span>
+            </h1>
+            <p class="text-slate-500 text-xs sm:text-sm max-w-md mx-auto px-2">
+                จำกัดวันละไม่เกิน 6 คนเท่านั้น (จันทร์ - ศุกร์) ข้อมูลอัปเดตพร้อมกันทันที
+            </p>
+        </header>
+
+        <!-- STEP 1: Identification & Selection Card -->
+        <section id="step-booking" class="wood-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 mb-6 sm:mb-10 transition-all duration-300 relative no-print">
+            
+            <div class="flex items-center justify-between border-b border-stone-200 pb-3 mb-5">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-jp-red text-white flex items-center justify-center font-bold font-jp text-xs sm:text-sm shadow">1</span>
+                    <div>
+                        <h2 class="font-bold text-base sm:text-lg text-slate-800 leading-snug">กรอกเลขที่ แล้วเลือกวัน</h2>
+                        <p class="text-[11px] sm:text-xs text-slate-500">กรอกเลขที่ของคุณ (1-28) แล้วกดวันเวรที่ต้องการ</p>
+                    </div>
+                </div>
+                <div class="hidden sm:block text-right">
+                    <span class="text-xs font-jp text-stone-400 block">定員制限</span>
+                    <span class="text-xs font-semibold text-jp-red">วันละ 6 คน</span>
+                </div>
+            </div>
+
+            <!-- Input Student Number -->
+            <div class="max-w-md mx-auto mb-6 bg-stone-50 p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-inner">
+                <label for="studentNo" class="block text-xs sm:text-sm font-semibold text-slate-700 mb-2 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-id-badge text-jp-red"></i>
+                        <span>ใส่ "เลขที่" ของคุณ (1 - 28)</span>
+                    </span>
+                    <span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-normal">*จำเป็น</span>
+                </label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="number" id="studentNo" min="1" max="28" inputmode="numeric" pattern="[0-9]*" placeholder="ตัวอย่าง: 5" 
+                            class="w-full pl-9 pr-3 py-2.5 sm:py-3 bg-white border-2 border-stone-300 rounded-xl focus:border-jp-red focus:outline-none font-bold text-base sm:text-lg text-slate-800 transition">
+                        <span class="absolute left-3 top-3 sm:top-3.5 text-stone-400 font-bold text-sm">№</span>
+                    </div>
+                    <button onclick="confirmStudentNumber()" id="btnConfirmNo" class="bg-slate-800 active:bg-slate-900 text-white px-4 sm:px-6 rounded-xl font-medium hover:bg-slate-700 active:scale-95 transition text-xs sm:text-sm flex items-center gap-1.5 shrink-0 shadow-sm">
+                        <span>ยืนยัน</span>
+                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                    </button>
+                </div>
+                <div id="studentNoStatus" class="mt-2 text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 min-h-[18px]">
+                    <i class="fa-solid fa-circle-info text-amber-500 text-xs"></i>
+                    <span>ยืนยันเลขที่ก่อนเพื่อปลดล็อกปุ่มเลือกวัน</span>
+                </div>
+            </div>
+
+            <!-- 5 Days Responsive Grid -->
+            <div id="daysGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4 opacity-50 pointer-events-none transition-all duration-300">
+                
+                <!-- MON -->
+                <div id="card-mon" class="day-card border-2 border-jp-mon-border bg-jp-mon-light/40 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-jp-mon-main border border-jp-mon-border inline-block"></span>
+                                <div>
+                                    <span class="text-[10px] font-jp text-jp-mon-dark block font-semibold leading-none">月曜日</span>
+                                    <h3 class="font-bold text-base sm:text-lg text-jp-mon-text">วันจันทร์</h3>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-jp-mon-dark bg-white/90 px-2.5 py-1 rounded-full border border-jp-mon-border/30 shadow-xs">
+                                <span id="count-mon">0</span>/6 คน
+                            </span>
+                        </div>
+                        <div class="min-h-[100px] sm:min-h-[120px] bg-white/70 rounded-xl p-2 border border-jp-mon-border/20 mb-3">
+                            <ul id="list-mon" class="space-y-1 text-xs text-jp-mon-text"></ul>
+                        </div>
+                    </div>
+                    <button onclick="selectDay('mon')" id="btn-mon" class="w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-jp-mon-main text-white shadow-xs hover:bg-jp-mon-dark active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        เลือกวันจันทร์
+                    </button>
+                </div>
+
+                <!-- TUE -->
+                <div id="card-tue" class="day-card border-2 border-jp-tue-border bg-jp-tue-light/40 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-jp-tue-main border border-jp-tue-border inline-block"></span>
+                                <div>
+                                    <span class="text-[10px] font-jp text-jp-tue-dark block font-semibold leading-none">火曜日</span>
+                                    <h3 class="font-bold text-base sm:text-lg text-jp-tue-text">วันอังคาร</h3>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-jp-tue-dark bg-white/90 px-2.5 py-1 rounded-full border border-jp-tue-border/30 shadow-xs">
+                                <span id="count-tue">0</span>/6 คน
+                            </span>
+                        </div>
+                        <div class="min-h-[100px] sm:min-h-[120px] bg-white/70 rounded-xl p-2 border border-jp-tue-border/20 mb-3">
+                            <ul id="list-tue" class="space-y-1 text-xs text-jp-tue-text"></ul>
+                        </div>
+                    </div>
+                    <button onclick="selectDay('tue')" id="btn-tue" class="w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-jp-tue-main text-white shadow-xs hover:bg-jp-tue-dark active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        เลือกวันอังคาร
+                    </button>
+                </div>
+
+                <!-- WED -->
+                <div id="card-wed" class="day-card border-2 border-jp-wed-border bg-jp-wed-light/40 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-jp-wed-main border border-jp-wed-border inline-block"></span>
+                                <div>
+                                    <span class="text-[10px] font-jp text-jp-wed-dark block font-semibold leading-none">水曜日</span>
+                                    <h3 class="font-bold text-base sm:text-lg text-jp-wed-text">วันพุธ</h3>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-jp-wed-dark bg-white/90 px-2.5 py-1 rounded-full border border-jp-wed-border/30 shadow-xs">
+                                <span id="count-wed">0</span>/6 คน
+                            </span>
+                        </div>
+                        <div class="min-h-[100px] sm:min-h-[120px] bg-white/70 rounded-xl p-2 border border-jp-wed-border/20 mb-3">
+                            <ul id="list-wed" class="space-y-1 text-xs text-jp-wed-text"></ul>
+                        </div>
+                    </div>
+                    <button onclick="selectDay('wed')" id="btn-wed" class="w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-jp-wed-main text-white shadow-xs hover:bg-jp-wed-dark active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        เลือกวันพุธ
+                    </button>
+                </div>
+
+                <!-- THU -->
+                <div id="card-thu" class="day-card border-2 border-jp-thu-border bg-jp-thu-light/40 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-jp-thu-main border border-jp-thu-border inline-block"></span>
+                                <div>
+                                    <span class="text-[10px] font-jp text-jp-thu-dark block font-semibold leading-none">木曜日</span>
+                                    <h3 class="font-bold text-base sm:text-lg text-jp-thu-text">วันพฤหัสบดี</h3>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-jp-thu-dark bg-white/90 px-2.5 py-1 rounded-full border border-jp-thu-border/30 shadow-xs">
+                                <span id="count-thu">0</span>/6 คน
+                            </span>
+                        </div>
+                        <div class="min-h-[100px] sm:min-h-[120px] bg-white/70 rounded-xl p-2 border border-jp-thu-border/20 mb-3">
+                            <ul id="list-thu" class="space-y-1 text-xs text-jp-thu-text"></ul>
+                        </div>
+                    </div>
+                    <button onclick="selectDay('thu')" id="btn-thu" class="w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-jp-thu-main text-white shadow-xs hover:bg-jp-thu-dark active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        เลือกวันพฤหัสบดี
+                    </button>
+                </div>
+
+                <!-- FRI -->
+                <div id="card-fri" class="day-card border-2 border-jp-fri-border bg-jp-fri-light/40 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-jp-fri-main border border-jp-fri-border inline-block"></span>
+                                <div>
+                                    <span class="text-[10px] font-jp text-jp-fri-dark block font-semibold leading-none">金曜日</span>
+                                    <h3 class="font-bold text-base sm:text-lg text-jp-fri-text">วันศุกร์</h3>
+                                </div>
+                            </div>
+                            <span class="text-xs font-semibold text-jp-fri-dark bg-white/90 px-2.5 py-1 rounded-full border border-jp-fri-border/30 shadow-xs">
+                                <span id="count-fri">0</span>/6 คน
+                            </span>
+                        </div>
+                        <div class="min-h-[100px] sm:min-h-[120px] bg-white/70 rounded-xl p-2 border border-jp-fri-border/20 mb-3">
+                            <ul id="list-fri" class="space-y-1 text-xs text-jp-fri-text"></ul>
+                        </div>
+                    </div>
+                    <button onclick="selectDay('fri')" id="btn-fri" class="w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-jp-fri-main text-white shadow-xs hover:bg-jp-fri-dark active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        เลือกวันศุกร์
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Admin Controls -->
+            <div class="mt-6 pt-3 border-t border-stone-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                <span class="text-slate-400">⚡ ระบบซิงค์ข้อมูลสดผ่าน Firebase Realtime Database</span>
+                <button onclick="resetData()" class="px-2.5 py-1 text-red-600 hover:bg-red-50 rounded-md transition font-medium flex items-center gap-1">
+                    <i class="fa-solid fa-rotate-right text-[10px]"></i> รีเซ็ตข้อมูลทั้งหมด
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 2: Large Printable Board -->
+        <section id="step-result" class="wood-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 relative overflow-hidden print-area">
+            
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 border-b-2 border-stone-800 pb-4 mb-6">
+                <div class="text-center sm:text-left">
+                    <span class="text-[10px] font-bold font-jp text-jp-red tracking-widest block">学級当番表 • CLASSROOM DUTY BOARD</span>
+                    <h2 class="text-2xl sm:text-3xl font-bold font-jp text-slate-900">
+                        ตารางเวรทำความสะอาด
+                    </h2>
+                    <p class="text-[11px] sm:text-xs text-stone-500 font-prompt">จำกัดสิทธิ์วันละ 6 คน (รวมสมาชิก 28 คน)</p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="hankou-stamp w-12 h-12 sm:w-14 sm:h-14 text-[10px] sm:text-xs font-jp text-center">
+                        <div>
+                            <span>掃除</span><br>
+                            <span class="text-[9px]">済</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 Columns Board Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                
+                <!-- Board MON -->
+                <div class="border-2 border-jp-mon-border rounded-xl bg-white overflow-hidden flex flex-col shadow-xs">
+                    <div class="bg-jp-mon-main p-2.5 text-white text-center font-bold">
+                        <span class="text-[9px] font-jp opacity-80 block">月曜日</span>
+                        <h4 class="text-base">วันจันทร์</h4>
+                        <div class="text-[10px] bg-black/10 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                            <span id="board-count-mon">0</span>/6 คน
+                        </div>
+                    </div>
+                    <div id="board-list-mon" class="p-2 space-y-1.5 flex-1 min-h-[180px] bg-jp-mon-light/20 flex flex-col justify-start"></div>
+                </div>
+
+                <!-- Board TUE -->
+                <div class="border-2 border-jp-tue-border rounded-xl bg-white overflow-hidden flex flex-col shadow-xs">
+                    <div class="bg-jp-tue-main p-2.5 text-white text-center font-bold">
+                        <span class="text-[9px] font-jp opacity-80 block">火曜日</span>
+                        <h4 class="text-base">วันอังคาร</h4>
+                        <div class="text-[10px] bg-black/10 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                            <span id="board-count-tue">0</span>/6 คน
+                        </div>
+                    </div>
+                    <div id="board-list-tue" class="p-2 space-y-1.5 flex-1 min-h-[180px] bg-jp-tue-light/20 flex flex-col justify-start"></div>
+                </div>
+
+                <!-- Board WED -->
+                <div class="border-2 border-jp-wed-border rounded-xl bg-white overflow-hidden flex flex-col shadow-xs">
+                    <div class="bg-jp-wed-main p-2.5 text-white text-center font-bold">
+                        <span class="text-[9px] font-jp opacity-80 block">水曜日</span>
+                        <h4 class="text-base">วันพุธ</h4>
+                        <div class="text-[10px] bg-black/10 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                            <span id="board-count-wed">0</span>/6 คน
+                        </div>
+                    </div>
+                    <div id="board-list-wed" class="p-2 space-y-1.5 flex-1 min-h-[180px] bg-jp-wed-light/20 flex flex-col justify-start"></div>
+                </div>
+
+                <!-- Board THU -->
+                <div class="border-2 border-jp-thu-border rounded-xl bg-white overflow-hidden flex flex-col shadow-xs">
+                    <div class="bg-jp-thu-main p-2.5 text-white text-center font-bold">
+                        <span class="text-[9px] font-jp opacity-80 block">木曜日</span>
+                        <h4 class="text-base">วันพฤหัสบดี</h4>
+                        <div class="text-[10px] bg-black/10 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                            <span id="board-count-thu">0</span>/6 คน
+                        </div>
+                    </div>
+                    <div id="board-list-thu" class="p-2 space-y-1.5 flex-1 min-h-[180px] bg-jp-thu-light/20 flex flex-col justify-start"></div>
+                </div>
+
+                <!-- Board FRI -->
+                <div class="border-2 border-jp-fri-border rounded-xl bg-white overflow-hidden flex flex-col shadow-xs">
+                    <div class="bg-jp-fri-main p-2.5 text-white text-center font-bold">
+                        <span class="text-[9px] font-jp opacity-80 block">金曜日</span>
+                        <h4 class="text-base">วันศุกร์</h4>
+                        <div class="text-[10px] bg-black/10 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                            <span id="board-count-fri">0</span>/6 คน
+                        </div>
+                    </div>
+                    <div id="board-list-fri" class="p-2 space-y-1.5 flex-1 min-h-[180px] bg-jp-fri-light/20 flex flex-col justify-start"></div>
+                </div>
+
+            </div>
+
+            <!-- Footer Action -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-stone-200">
+                <span class="text-[11px] text-stone-500 text-center sm:text-left">
+                    <i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> ตรวจสอบตารางก่อนสั่งพิมพ์ติดบอร์ดหน้าห้อง
+                </span>
+
+                <button onclick="window.print()" class="no-print w-full sm:w-auto bg-jp-red text-white px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md hover:bg-red-700 active:scale-95 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>พิมพ์ตารางเวร / บันทึก PDF</span>
+                </button>
+            </div>
+
+        </section>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-auto z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none no-print">
+        <div id="toastContent" class="bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-slate-700 text-xs sm:text-sm">
+            <span id="toastIcon"><i class="fa-solid fa-circle-info text-amber-400"></i></span>
+            <span id="toastMessage" class="font-medium">ข้อความแจ้งเตือน</span>
+        </div>
+    </div>
+
+    <!-- Application Logic with Firebase Realtime Sync -->
+    <script>
+        let currentConfirmedNumber = null;
+        const maxCapacity = 6;
+        const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
+        let dutyData = { mon: [], tue: [], wed: [], thu: [], fri: [] };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            createSakuraPetals();
+            
+            // Wait for Firebase to initialize
+            window.addEventListener('firebase-ready', () => {
+                initFirebaseRealtime();
+            });
+        });
+
+        function initFirebaseRealtime() {
+            const dbRef = window.ref(window.db, 'dutyData');
+            
+            // Listen for data changes in Realtime
+            window.onValue(dbRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    dutyData = {
+                        mon: data.mon || [],
+                        tue: data.tue || [],
+                        wed: data.wed || [],
+                        thu: data.thu || [],
+                        fri: data.fri || []
+                    };
+                } else {
+                    // Default empty if first time
+                    dutyData = { mon: [], tue: [], wed: [], thu: [], fri: [] };
+                }
+                renderAllData();
+            });
+        }
+
+        function confirmStudentNumber() {
+            const input = document.getElementById('studentNo');
+            const num = parseInt(input.value);
+            const statusEl = document.getElementById('studentNoStatus');
+            const daysGrid = document.getElementById('daysGrid');
+
+            if (!num || num < 1 || num > 28) {
+                showToast('กรุณากรอกเลขที่ระหว่าง 1 - 28 ครับ', 'error');
+                statusEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-500"></i> <span class="text-red-500 font-medium">เลขที่ต้องอยู่ระหว่าง 1 - 28 เท่านั้น</span>`;
+                daysGrid.classList.add('opacity-50', 'pointer-events-none');
+                currentConfirmedNumber = null;
+                return;
+            }
+
+            let existingDay = findStudentDay(num);
+            if (existingDay) {
+                const dayNames = { mon: 'วันจันทร์', tue: 'วันอังคาร', wed: 'วันพุธ', thu: 'วันพฤหัสบดี', fri: 'วันศุกร์' };
+                showToast(`เลขที่ ${num} ได้ลงชื่อวัน${dayNames[existingDay]} ไปแล้ว!`, 'warning');
+                statusEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500"></i> <span class="text-amber-600 font-medium">เลขที่ ${num} ลงชื่อวัน${dayNames[existingDay]} แล้ว</span>`;
+                daysGrid.classList.add('opacity-50', 'pointer-events-none');
+                currentConfirmedNumber = null;
+                return;
+            }
+
+            currentConfirmedNumber = num;
+            showToast(`ยืนยันเลขที่ ${num} เรียบร้อย กรุณาเลือกวันเวร`, 'success');
+            statusEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600"></i> <span class="text-emerald-600 font-medium">ยืนยันเลขที่ ${num} แล้ว! เลือกวันทำความสะอาดด้านล่างได้เลย</span>`;
+            
+            daysGrid.classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        function findStudentDay(num) {
+            for (let day of days) {
+                if (dutyData[day] && dutyData[day].includes(num)) return day;
+            }
+            return null;
+        }
+
+        function selectDay(dayKey) {
+            if (!currentConfirmedNumber) {
+                showToast('กรุณากรอกและยืนยันเลขที่ก่อนครับ', 'error');
+                return;
+            }
+
+            const dbRef = window.ref(window.db, `dutyData/${dayKey}`);
+
+            // Use Firebase Transaction to prevent booking conflicts if multiple users click at the same second
+            window.runTransaction(dbRef, (currentList) => {
+                if (currentList === null) {
+                    currentList = [];
+                }
+                
+                // Check if already booked
+                if (currentList.includes(currentConfirmedNumber)) {
+                    return; // abort
+                }
+
+                if (currentList.length >= maxCapacity) {
+                    return; // full
+                }
+
+                currentList.push(currentConfirmedNumber);
+                currentList.sort((a, b) => a - b);
+                return currentList;
+            }).then((result) => {
+                if (result.committed) {
+                    const dayNames = { mon: 'วันจันทร์', tue: 'วันอังคาร', wed: 'วันพุธ', thu: 'วันพฤหัสบดี', fri: 'วันศุกร์' };
+                    showToast(`เลขที่ ${currentConfirmedNumber} จองเวร "วัน${dayNames[dayKey]}" สำเร็จ!`, 'success');
+
+                    document.getElementById('studentNo').value = '';
+                    document.getElementById('studentNoStatus').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600"></i> <span class="text-emerald-600 font-medium">ลงชื่อสำเร็จแล้ว!</span>`;
+                    document.getElementById('daysGrid').classList.add('opacity-50', 'pointer-events-none');
+                    currentConfirmedNumber = null;
+
+                    document.getElementById('step-result').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showToast('ขออภัย วันนี้เต็มแล้วหรือคุณได้จองไปแล้ว', 'error');
+                }
+            }).catch((error) => {
+                showToast('เกิดข้อผิดพลาด: ' + error.message, 'error');
+            });
+        }
+
+        function renderAllData() {
+            days.forEach(day => {
+                const list = dutyData[day] || [];
+                const isFull = list.length >= maxCapacity;
+
+                document.getElementById(`count-${day}`).innerText = `${list.length}`;
+                document.getElementById(`board-count-${day}`).innerText = list.length;
+
+                const listEl = document.getElementById(`list-${day}`);
+                listEl.innerHTML = '';
+                if (list.length === 0) {
+                    listEl.innerHTML = `<li class="text-stone-400 italic text-center py-2 text-[11px]">ยังไม่มีผู้ลงชื่อ</li>`;
+                } else {
+                    list.forEach(num => {
+                        listEl.innerHTML += `
+                            <li class="flex items-center justify-between bg-white/90 px-2 py-0.5 rounded border border-stone-200 font-medium text-xs">
+                                <span>№ ${num}</span>
+                                <button onclick="removeStudent('${day}', ${num})" class="text-stone-300 hover:text-red-500 transition px-1" title="ยกเลิก">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </li>
+                        `;
+                    });
+                }
+
+                const boardListEl = document.getElementById(`board-list-${day}`);
+                boardListEl.innerHTML = '';
+                
+                for (let i = 0; i < maxCapacity; i++) {
+                    if (i < list.length) {
+                        const num = list[i];
+                        boardListEl.innerHTML += `
+                            <div class="bg-slate-800 text-white rounded-lg p-1.5 text-center shadow-xs flex items-center justify-between px-2.5">
+                                <span class="text-[9px] opacity-70 font-jp">当番</span>
+                                <span class="font-bold text-xs sm:text-sm">เลขที่ ${num}</span>
+                                <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i>
+                            </div>
+                        `;
+                    } else {
+                        boardListEl.innerHTML += `
+                            <div class="border border-dashed border-stone-300 rounded-lg p-1.5 text-center text-stone-300 font-medium text-[11px] flex items-center justify-center">
+                                <span>- ว่าง -</span>
+                            </div>
+                        `;
+                    }
+                }
+
+                const btn = document.getElementById(`btn-${day}`);
+                if (isFull) {
+                    btn.disabled = true;
+                    btn.innerText = 'เต็มแล้ว (6/6)';
+                    btn.className = 'w-full py-2.5 rounded-xl font-bold text-xs bg-stone-300 text-stone-500 cursor-not-allowed shadow-none';
+                } else {
+                    btn.disabled = false;
+                    const dayThNames = { mon: 'วันจันทร์', tue: 'วันอังคาร', wed: 'วันพุธ', thu: 'วันพฤหัสบดี', fri: 'วันศุกร์' };
+                    btn.innerText = `เลือก${dayThNames[day]}`;
+                    
+                    const colorClasses = {
+                        mon: 'bg-jp-mon-main hover:bg-jp-mon-dark text-white',
+                        tue: 'bg-jp-tue-main hover:bg-jp-tue-dark text-white',
+                        wed: 'bg-jp-wed-main hover:bg-jp-wed-dark text-white',
+                        thu: 'bg-jp-thu-main hover:bg-jp-thu-dark text-white',
+                        fri: 'bg-jp-fri-main hover:bg-jp-fri-dark text-white'
+                    };
+                    btn.className = `w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition active:scale-95 ${colorClasses[day]}`;
+                }
+            });
+        }
+
+        function removeStudent(dayKey, num) {
+            const dbRef = window.ref(window.db, `dutyData/${dayKey}`);
+            window.runTransaction(dbRef, (currentList) => {
+                if (!currentList) return [];
+                return currentList.filter(n => n !== num);
+            }).then(() => {
+                showToast(`ยกเลิกเลขที่ ${num} เรียบร้อย`, 'info');
+            });
+        }
+
+        function resetData() {
+            if (confirm('ต้องการรีเซ็ตข้อมูลการจองทั้งหมดใช่หรือไม่?')) {
+                const dbRef = window.ref(window.db, 'dutyData');
+                window.set(dbRef, { mon: [], tue: [], wed: [], thu: [], fri: [] }).then(() => {
+                    showToast('รีเซ็ตข้อมูลทั้งหมดเรียบร้อย', 'info');
+                });
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.innerText = msg;
+
+            if (type === 'success') {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>`;
+            } else if (type === 'error') {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-400 text-base"></i>`;
+            } else if (type === 'warning') {
+                toastIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400 text-base"></i>`;
+            } else {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-info text-blue-400 text-base"></i>`;
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function createSakuraPetals() {
+            const container = document.getElementById('sakura-container');
+            const petalCount = 8;
+            for (let i = 0; i < petalCount; i++) {
+                const petal = document.createElement('div');
+                petal.className = 'sakura';
+                const size = Math.random() * 8 + 6;
+                petal.style.width = `${size}px`;
+                petal.style.height = `${size}px`;
+                petal.style.left = `${Math.random() * 100}%`;
+                petal.style.animationDuration = `${Math.random() * 5 + 7}s, ${Math.random() * 3 + 2}s`;
+                petal.style.animationDelay = `${Math.random() * 4}s`;
+                container.appendChild(petal);
+            }
+        }
+    </script>
+</body>
+</html>
